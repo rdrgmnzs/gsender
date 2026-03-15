@@ -5,8 +5,11 @@
 # Runs gSender as a headless web server (no Electron UI).
 # The web UI is served on port 8000 by default.
 #
-# To access a physical CNC machine via serial port, pass the device through:
-#   docker run --device /dev/ttyUSB0:/dev/ttyUSB0 -p 8000:8000 ghcr.io/<owner>/gsender:latest
+# To access a physical CNC machine via serial port, pass the device through
+# and mount the host udev database so serial port metadata (VID/PID) is available:
+#   docker run --device /dev/ttyUSB0:/dev/ttyUSB0 \
+#              -v /run/udev:/run/udev:ro \
+#              -p 8000:8000 ghcr.io/<owner>/gsender:latest
 #
 # To mount a config file:
 #   docker run -v ~/.cncrc:/root/.cncrc -p 8000:8000 ghcr.io/<owner>/gsender:latest
@@ -55,10 +58,14 @@ RUN yarn install --production --ignore-scripts --non-interactive
 # ---- Runtime Stage ----
 FROM node:22-bookworm-slim AS runtime
 
-# Runtime shared libraries for serialport and USB
+# Runtime shared libraries for serialport and USB.
+# udev is needed so that `udevadm` exists for SerialPort.list() device enumeration.
+# Mount the host udev database at /run/udev for full VID/PID metadata:
+#   podman/docker run -v /run/udev:/run/udev:ro ...
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libudev1 \
     libusb-1.0-0 \
+    udev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
